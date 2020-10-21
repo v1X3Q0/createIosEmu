@@ -2,7 +2,11 @@
 VM_NAMTE=$1
 IOS_VER=$2
 unzip ${VM_NAMTE}
-git clone git@github.com:alephsecurity/xnu-qemu-arm64-tools.git
+
+wget https://github.com/alephsecurity/xnu-qemu-arm64-tools/archive/master.zip
+unzip master.zip
+mv xnu-qemu-arm64-tools-master xnu-qemu-arm64-tools
+rm -rf master.zip
 
 python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1kerneldecode.py kernelcache.release.n66 kernelcache.release.n66.asn1decoded
 python3 xnu-qemu-arm64-tools/bootstrap_scripts/decompress_lzss.py kernelcache.release.n66.asn1decoded kernelcache.release.n66.out
@@ -42,7 +46,7 @@ ipswFS=${fileNM[ ${#fileNM[@]} - 1 ]}
 
 python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1rdskdecode.py ${ramFS} ${ramFS}.out
 
-hdiutil resize -size 1.5G -imagekey diskimage-class=CRawDiskImage ${ramFS}.out
+hdiutil resize -size 2.0G -imagekey diskimage-class=CRawDiskImage ${ramFS}.out
 # PeaceXXXXXX.arm64UpdateRamDisk
 mntVolRam=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage ${ramFS}.out | awk '{print $2}')
 sudo diskutil enableownership ${mntVolRam}
@@ -53,7 +57,11 @@ sudo mkdir -p ${mntVolRam}/System/Library/Caches/com.apple.dyld/
 sudo cp ${mntVolFS}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64 ${mntVolRam}/System/Library/Caches/com.apple.dyld/
 sudo chown root ${mntVolRam}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64
 
-git clone https://github.com/jakeajames/rootlessJB
+wget https://github.com/jakeajames/rootlessJB/archive/master.zip
+unzip master.zip
+mv rootlessJB-master rootlessJB
+rm -rf master.zip
+
 cd rootlessJB/rootlessJB/bootstrap/tars/
 tar xvf iosbinpack.tar
 sudo cp -R iosbinpack64 ${mntVolRam}
@@ -70,10 +78,18 @@ python3 xnu-qemu-arm64-tools/bootstrap_scripts/create_trustcache.py tchashes sta
 hdiutil detach ${mntVolRam}
 hdiutil detach ${mntVolFS}   
 
-git clone git@github.com:v1X3Q0/xnu-qemu-arm64.git
+# wget https://github.com/v1X3Q0/xnu-qemu-arm64/archive/master.zip
+git clone https://github.com/v1X3Q0/xnu-qemu-arm64
+# unzip master.zip
+# mv xnu-qemu-arm64-master xnu-qemu-arm64
+# rm -rf master.zip
+
 cd xnu-qemu-arm64
-git checkout tc-Experiment
-./configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug
+mkdir build-out
+cd build-out
+../configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug
 
 make -j4 CFLAGS=-D${IOS_VER}=1
 cd -
+
+sed "s/048-32651-104.dmg.out/${ramFS}/g" starup.sh

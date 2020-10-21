@@ -1,0 +1,1 @@
+./xnu-qemu-arm64/build-out/aarch64-softmmu/qemu-system-aarch64 -M iPhone6splus-n66-s8000,kernel-filename=kernelcache.release.n66.out,dtb-filename=Firmware/all_flash/DeviceTree.n66ap.im4p.out,ramdisk-filename=048-32651-104.dmg.out,tc-filename=static_tc,kern-cmd-args="debug=0x8 kextlog=0xfff cpus=1 rd=md0 serial=2",xnu-ramfb=off -cpu max -m 6G -serial mon:stdio
