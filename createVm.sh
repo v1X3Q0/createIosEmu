@@ -1,5 +1,6 @@
 
 VM_NAMTE=$1
+IOS_VER=$2
 unzip ${VM_NAMTE}
 git clone git@github.com:alephsecurity/xnu-qemu-arm64-tools.git
 
@@ -73,5 +74,6 @@ git clone git@github.com:v1X3Q0/xnu-qemu-arm64.git
 cd xnu-qemu-arm64
 git checkout tc-Experiment
 ./configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug
-make -j4
+
+make -j4 CFLAGS=-D${IOS_VER}=1
 cd -
