@@ -78,17 +78,12 @@ python3 xnu-qemu-arm64-tools/bootstrap_scripts/create_trustcache.py tchashes sta
 hdiutil detach ${mntVolRam}
 hdiutil detach ${mntVolFS}   
 
-# wget https://github.com/v1X3Q0/xnu-qemu-arm64/archive/master.zip
 git clone https://github.com/v1X3Q0/xnu-qemu-arm64
-# unzip master.zip
-# mv xnu-qemu-arm64-master xnu-qemu-arm64
-# rm -rf master.zip
 
 cd xnu-qemu-arm64
 mkdir build-out
 cd build-out
-../configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug
-
+../configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug --enable-debug-info --disable-strip --prefix=$(pwd)/../outInst
 make -j4 CFLAGS=-D${IOS_VER}=1
 cd -
 
