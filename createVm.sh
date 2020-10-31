@@ -8,9 +8,31 @@ unzip master.zip
 mv xnu-qemu-arm64-tools-master xnu-qemu-arm64-tools
 rm -rf master.zip
 
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1kerneldecode.py kernelcache.release.n66 kernelcache.release.n66.asn1decoded
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/decompress_lzss.py kernelcache.release.n66.asn1decoded kernelcache.release.n66.out
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1dtredecode.py Firmware/all_flash/DeviceTree.n66ap.im4p Firmware/all_flash/DeviceTree.n66ap.im4p.out
+for filename in ./kernelcache*; do
+    tmpfilesize=$(wc -c "${filename}" | awk '{print $1}')
+    if [ ${myfilesize} -eq 0 ]
+    then
+        kernelcacheBase=${filename}
+        myfilesize=${tmpfilesize}
+    else
+        tmpfilesize=$(wc -c "${filename}" | awk '{print $1}')
+        if [ ${tmpfilesize} -ge ${myfilesize} ]
+        then
+            kernelcacheBase=${filename}
+            myfilesize=${tmpfilesize}
+        fi
+    fi    
+done
+
+python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1kerneldecode.py ${kernelcacheBase} ${kernelcacheBase}.asn1decoded
+if [ ${IPHONE_VER} -eq n104ap ]
+then
+    lzfse -decode -i ${kernelcacheBase}.asn1decoded -o ${kernelcacheBase}.out
+elif [ ${IPHONE_VER} -eq n66ap ]
+then
+    python3 xnu-qemu-arm64-tools/bootstrap_scripts/decompress_lzss.py ${kernelcacheBase}.asn1decoded ${kernelcacheBase}.out
+fi
+python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1dtredecode.py Firmware/all_flash/DeviceTree.${2}.im4p Firmware/all_flash/DeviceTree.${2}.im4p.out
 
 fileST=()
 fileNM=()
