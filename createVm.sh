@@ -1,12 +1,25 @@
 
 VM_NAMTE=$1
-IOS_VER=$2
+IPHONE_VER=$2
+IOS_VER=$3
+# COPY_BLK=$4
+# USE_BUILTIN=$5
 unzip ${VM_NAMTE}
+PATH_PREFIX=~/repos
 
-wget https://github.com/alephsecurity/xnu-qemu-arm64-tools/archive/master.zip
-unzip master.zip
-mv xnu-qemu-arm64-tools-master xnu-qemu-arm64-tools
-rm -rf master.zip
+if [ -z ${USE_BUILTIN} ]
+then
+
+    wget https://github.com/alephsecurity/xnu-qemu-arm64-tools/archive/master.zip
+    unzip master.zip
+    mv xnu-qemu-arm64-tools-master xnu-qemu-arm64-tools
+    rm -rf master.zip
+    PATH_PREFIX=.
+fi
+
+kernelcacheBase=()
+myfilesize=0
+tmpfilesize=0
 
 for filename in ./kernelcache*; do
     tmpfilesize=$(wc -c "${filename}" | awk '{print $1}')
@@ -24,15 +37,25 @@ for filename in ./kernelcache*; do
     fi    
 done
 
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1kerneldecode.py ${kernelcacheBase} ${kernelcacheBase}.asn1decoded
-if [ ${IPHONE_VER} -eq n104ap ]
+python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/asn1kerneldecode.py ${kernelcacheBase} ${kernelcacheBase}.asn1decoded
+if [[ "${IPHONE_VER}" == "n104ap" ]]
 then
     lzfse -decode -i ${kernelcacheBase}.asn1decoded -o ${kernelcacheBase}.out
-elif [ ${IPHONE_VER} -eq n66ap ]
+elif [[ "${IPHONE_VER}" == "n66ap" ]]
 then
-    python3 xnu-qemu-arm64-tools/bootstrap_scripts/decompress_lzss.py ${kernelcacheBase}.asn1decoded ${kernelcacheBase}.out
+    python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/decompress_lzss.py ${kernelcacheBase}.asn1decoded ${kernelcacheBase}.out
+else
+    echo Need a specified iphone device prefix, not ${IPHONE_VER}
+    exit
 fi
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1dtredecode.py Firmware/all_flash/DeviceTree.${2}.im4p Firmware/all_flash/DeviceTree.${2}.im4p.out
+
+if [[ "${IOS_VER}" == "IOS_14_0" ]]
+then
+    python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/asn1dtredecode.py Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p.asn1decoded
+    lzfse -decode -i Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p.asn1decoded -o Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p.out
+else
+    python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/asn1dtredecode.py Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p Firmware/all_flash/DeviceTree.${IPHONE_VER}.im4p.out
+fi
 
 fileST=()
 fileNM=()
@@ -65,48 +88,68 @@ fi
 
 ipswFS=${fileNM[ ${#fileNM[@]} - 1 ]}
 
-
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/asn1rdskdecode.py ${ramFS} ${ramFS}.out
-
-hdiutil resize -size 2.0G -imagekey diskimage-class=CRawDiskImage ${ramFS}.out
-# PeaceXXXXXX.arm64UpdateRamDisk
-mntVolRam=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage ${ramFS}.out | awk '{print $2}')
-sudo diskutil enableownership ${mntVolRam}
-# not peace
-mntVolFS=$(hdiutil attach ${ipswFS} | grep Volumes | awk '{print $3}')
-
-sudo mkdir -p ${mntVolRam}/System/Library/Caches/com.apple.dyld/
-sudo cp ${mntVolFS}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64 ${mntVolRam}/System/Library/Caches/com.apple.dyld/
-sudo chown root ${mntVolRam}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64
-
-wget https://github.com/jakeajames/rootlessJB/archive/master.zip
-unzip master.zip
-mv rootlessJB-master rootlessJB
-rm -rf master.zip
-
-cd rootlessJB/rootlessJB/bootstrap/tars/
-tar xvf iosbinpack.tar
-sudo cp -R iosbinpack64 ${mntVolRam}
-cd -
-
-sudo rm ${mntVolRam}/System/Library/LaunchDaemons/*
-sudo cp bash.plist ${mntVolRam}/System/Library/LaunchDaemons/bash.plist
-
 touch ./tchashes
-for filename in $(find ${mntVolRam}/iosbinpack64 -type f); do jtool --sig --ent $filename 2>/dev/null; done | grep CDHash | cut -d' ' -f6 | cut -c 1-40 >> ./tchashes
+touch ./static_tc
 
-python3 xnu-qemu-arm64-tools/bootstrap_scripts/create_trustcache.py tchashes static_tc
+# cause I don't have resize yet:
+if [ ${COPY_BLK} -eq 1 ]
+then
+    if [ -f ~/store/ipsw/ramfsExt/${ramFS}.out ]
+    then
+        cp ~/store/ipsw/ramfsExt/${ramFS}.out ${ramFS}.out
+    else
+        echo Need the ipsw file ${ramFS} to exists
+        exit
+    fi
+else
+    python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/asn1rdskdecode.py ${ramFS} ${ramFS}.out
 
-hdiutil detach ${mntVolRam}
-hdiutil detach ${mntVolFS}   
+    hdiutil resize -size 2.0G -imagekey diskimage-class=CRawDiskImage ${ramFS}.out
+    # PeaceXXXXXX.arm64UpdateRamDisk
+    mntVolRam=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage ${ramFS}.out | awk '{print $2}')
+    sudo diskutil enableownership ${mntVolRam}
+    # not peace
+    mntVolFS=$(hdiutil attach ${ipswFS} | grep Volumes | awk '{print $3}')
 
-git clone https://github.com/v1X3Q0/xnu-qemu-arm64
+    sudo mkdir -p ${mntVolRam}/System/Library/Caches/com.apple.dyld/
+    sudo cp ${mntVolFS}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64 ${mntVolRam}/System/Library/Caches/com.apple.dyld/
+    sudo chown root ${mntVolRam}/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64
 
-cd xnu-qemu-arm64
-mkdir build-out
-cd build-out
-../configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug --enable-debug-info --disable-strip --prefix=$(pwd)/../outInst
-make -j4 CFLAGS=-D${IOS_VER}=1
-cd -
+    if [ -z ${USE_BUILTIN} ]
+    then
+        wget https://github.com/jakeajames/rootlessJB/archive/master.zip
+        unzip master.zip
+        mv rootlessJB-master rootlessJB
+        rm -rf master.zip
+    fi
+
+    cd ${PATH_PREFIX}/rootlessJB/rootlessJB/bootstrap/tars/
+    tar xvf iosbinpack.tar
+    sudo cp -R iosbinpack64 ${mntVolRam}
+    cd -
+
+    sudo rm ${mntVolRam}/System/Library/LaunchDaemons/*
+    sudo cp bash.plist ${mntVolRam}/System/Library/LaunchDaemons/bash.plist
+
+    touch ./tchashes
+    for filename in $(find ${mntVolRam}/iosbinpack64 -type f); do jtool --sig --ent $filename 2>/dev/null; done | grep CDHash | cut -d' ' -f6 | cut -c 1-40 >> ./tchashes
+
+    python3 ${PATH_PREFIX}/xnu-qemu-arm64-tools/bootstrap_scripts/create_trustcache.py tchashes static_tc
+
+    hdiutil detach ${mntVolRam}
+    hdiutil detach ${mntVolFS}   
+fi
+
+if [ -z ${USE_BUILTIN} ]
+then
+    git clone https://github.com/v1X3Q0/xnu-qemu-arm64
+
+    cd xnu-qemu-arm64
+    mkdir build-out
+    cd build-out
+    ../configure --target-list=aarch64-softmmu --disable-capstone --disable-pie --disable-slirp --enable-debug --enable-debug-info --disable-strip --prefix=$(pwd)/../outInst
+    make -j4 CFLAGS=-D${IOS_VER}=1
+    cd -
+fi
 
 sed "s/048-32651-104.dmg.out/${ramFS}/g" starup.sh

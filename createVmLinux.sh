@@ -88,6 +88,7 @@ fi
 ipswFS=${fileNM[ ${#fileNM[@]} - 1 ]}
 
 touch ./tchashes
+touch ./static_tc
 
 # cause I don't have resize yet:
 if [ ${COPY_BLK} -eq 1 ]
